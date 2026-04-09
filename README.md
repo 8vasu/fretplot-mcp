@@ -57,11 +57,13 @@ Rather than cloning the entire fretplot repository, the server fetches only what
 - `doc_fretplot.tex` (checked out automatically in cone mode as a root file)
 - `include/` directory (contains example `.fp` and `.tex` files referenced from the doc)
 
-This is done with a partial clone plus cone-mode sparse checkout:
+This is done with a partial clone and non-cone sparse checkout, which allows specifying
+exact files and directories rather than the cone-mode default of always including all root-level files:
 
 ```
-git clone --filter=blob:none --sparse <repo>
-git sparse-checkout add include
+git clone --filter=blob:none --no-checkout <repo>
+git sparse-checkout set --no-cone /doc_fretplot.tex /include/
+git checkout
 ```
 
 `fretplot.lua`, `fretplot.sty`, and all other files are never downloaded.

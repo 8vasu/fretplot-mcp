@@ -73,14 +73,17 @@ func syncFretplot() error {
 		if err := os.MkdirAll(filepath.Dir(dir), 0755); err != nil {
 			return fmt.Errorf("creating data dir: %w", err)
 		}
-		// Partial clone with cone-mode sparse checkout.
-		// Root files (including doc_fretplot.tex) are checked out automatically.
-		if err := run("git", "clone", "--filter=blob:none", "--sparse", fretplotRepo, dir); err != nil {
+		// Partial clone without checkout; non-cone sparse checkout lets us
+		// specify exact files/dirs to check out, excluding other root-level files.
+		if err := run("git", "clone", "--filter=blob:none", "--no-checkout", fretplotRepo, dir); err != nil {
 			return fmt.Errorf("git clone: %w", err)
 		}
-		// Add include/ so example files referenced by doc_fretplot.tex are also present.
-		if err := run("git", "-C", dir, "sparse-checkout", "add", "include"); err != nil {
-			return fmt.Errorf("git sparse-checkout add: %w", err)
+		// Check out only doc_fretplot.tex and the include/ directory.
+		if err := run("git", "-C", dir, "sparse-checkout", "set", "--no-cone", "/doc_fretplot.tex", "/include/"); err != nil {
+			return fmt.Errorf("git sparse-checkout set: %w", err)
+		}
+		if err := run("git", "-C", dir, "checkout"); err != nil {
+			return fmt.Errorf("git checkout: %w", err)
 		}
 		return nil
 	}
