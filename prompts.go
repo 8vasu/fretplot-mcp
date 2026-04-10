@@ -24,27 +24,32 @@ func makePromptHandler(toolName string) mcp.PromptHandler {
 func addPrompts(server *mcp.Server) {
 	arg := []*mcp.PromptArgument{{Name: "query", Required: true}}
 
-	server.AddPrompt(&mcp.Prompt{
-		Name:        "list_scales",
-		Description: "Look up built-in fretplot scale and arpeggio macros.",
-		Arguments:   arg,
-	}, makePromptHandler("list_scales"))
+	prompts := []struct {
+		name, description string
+	}{
+		{
+			"list_scales",
+			"Look up built-in fretplot scale and arpeggio macros.",
+		},
+		{
+			"fp_snippet",
+			"Generate .fp code for any fretplot diagram property or effect.",
+		},
+		{
+			"fps_snippet",
+			"Generate .fps code for any fretplot scale style customization.",
+		},
+		{
+			"tex_snippet",
+			"Generate fretplot LaTeX code: macros, preamble, complete documents.",
+		},
+	}
 
-	server.AddPrompt(&mcp.Prompt{
-		Name:        "fp_snippet",
-		Description: "Generate .fp code for any fretplot diagram property or effect.",
-		Arguments:   arg,
-	}, makePromptHandler("fp_snippet"))
-
-	server.AddPrompt(&mcp.Prompt{
-		Name:        "fps_snippet",
-		Description: "Generate .fps code for any fretplot scale style customization.",
-		Arguments:   arg,
-	}, makePromptHandler("fps_snippet"))
-
-	server.AddPrompt(&mcp.Prompt{
-		Name:        "tex_snippet",
-		Description: "Generate fretplot LaTeX code: macros, preamble, complete documents.",
-		Arguments:   arg,
-	}, makePromptHandler("tex_snippet"))
+	for _, p := range prompts {
+		server.AddPrompt(&mcp.Prompt{
+			Name:        p.name,
+			Description: p.description,
+			Arguments:   arg,
+		}, makePromptHandler(p.name))
+	}
 }

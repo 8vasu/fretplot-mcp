@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -53,9 +52,9 @@ func fretplotDir() (string, error) {
 	return filepath.Join(dataDir, "fretplot-mcp", "fretplot"), nil
 }
 
-// run executes a command, forwarding stderr to the server's stderr.
-func run(name string, args ...string) error {
-	cmd := exec.Command(name, args...)
+// run git, forwarding stderr to the server's stderr.
+func git(args ...string) error {
+	cmd := exec.Command("git", args...)
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
@@ -75,42 +74,20 @@ func syncFretplot() error {
 		}
 		// Partial clone without checkout; non-cone sparse checkout lets us
 		// specify exact files/dirs to check out, excluding other root-level files.
-		if err := run("git", "clone", "--filter=blob:none", "--no-checkout", fretplotRepo, dir); err != nil {
+		if err := git("clone", "--filter=blob:none", "--no-checkout", fretplotRepo, dir); err != nil {
 			return fmt.Errorf("git clone: %w", err)
 		}
 		// Check out only doc_fretplot.tex and the include/ directory.
-		if err := run("git", "-C", dir, "sparse-checkout", "set", "--no-cone", "/doc_fretplot.tex", "/include/"); err != nil {
+		if err := git("-C", dir, "sparse-checkout", "set", "--no-cone", "/doc_fretplot.tex", "/include/"); err != nil {
 			return fmt.Errorf("git sparse-checkout set: %w", err)
 		}
-		if err := run("git", "-C", dir, "checkout"); err != nil {
+		if err := git("-C", dir, "checkout"); err != nil {
 			return fmt.Errorf("git checkout: %w", err)
 		}
 		return nil
 	}
 	log.Printf("Pulling fretplot in %s", dir)
-	return run("git", "-C", dir, "pull")
-}
-
-func listScales(_ context.Context, _ *mcp.CallToolRequest, input snippetInput) (*mcp.CallToolResult, any, error) {
-	dir, err := fretplotDir()
-	if err != nil {
-		return nil, nil, fmt.Errorf("fretplot dir: %w", err)
-	}
-	entries, err := ParseScaleMacros(filepath.Join(dir, "doc_fretplot.tex"))
-	if err != nil {
-		return nil, nil, fmt.Errorf("parsing scale macros from doc_fretplot.tex: %w", err)
-	}
-	var sb strings.Builder
-	sb.WriteString("Built-in fretplot scale/arpeggio macros (interval formulas in semitones):\n\n")
-	for _, e := range entries {
-		sb.WriteString(fmt.Sprintf("%-24s  %-44s  %s\n", e.macro, e.name, e.formula))
-	}
-	if input.Query != "" {
-		sb.WriteString(fmt.Sprintf("\nQuery: %s\n", input.Query))
-	}
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{&mcp.TextContent{Text: sb.String()}},
-	}, nil, nil
+	return git("-C", dir, "pull")
 }
 
 func main() {
@@ -134,11 +111,6 @@ func main() {
 	addResources(server, sections)
 	addTools(server, sections)
 	addPrompts(server)
-
-	mcp.AddTool(server, &mcp.Tool{
-		Name:        "list_scales",
-		Description: "List all built-in fretplot scale and arpeggio macros with their interval formulas (semitones). Optionally takes a query to answer a specific question about a scale or arpeggio.",
-	}, listScales)
 
 	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
 		log.Printf("Server error: %v", err)
