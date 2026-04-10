@@ -63,11 +63,11 @@ func makeSnippetHandler(docs string) func(context.Context, *mcp.CallToolRequest,
 }
 
 func addTools(server *mcp.Server, sections []DocSection) {
-	fpDocs := formatSections(sectionsWithPrefix(sections, "fretplot://doc/fp/"))
-	fpsDocs := formatSections(sectionsWithPrefix(sections, "fretplot://doc/fps/"))
+	fpDocs := formatSections(sectionsWithPrefix(sections, "fretplot://fp/"))
+	fpsDocs := formatSections(sectionsWithPrefix(sections, "fretplot://fps/"))
 
 	var texSections []DocSection
-	for _, prefix := range []string{"fretplot://doc/introduction/", "fretplot://doc/macros/"} {
+	for _, prefix := range []string{"fretplot://introduction/", "fretplot://macros/"} {
 		texSections = append(texSections, sectionsWithPrefix(sections, prefix)...)
 	}
 	texDocs := formatSections(texSections)

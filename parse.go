@@ -188,7 +188,7 @@ func ParseDocSections(docPath string) ([]DocSection, error) {
 				sectionSlug = slug
 			}
 			curName = latexTitleToName(m[1])
-			curURI = "fretplot://doc/" + sectionSlug
+			curURI = "fretplot://" + sectionSlug
 			atSectionLevel = true
 			sectionLines = nil
 			continue
@@ -205,7 +205,7 @@ func ParseDocSections(docPath string) ([]DocSection, error) {
 			}
 			subSlug := latexTitleToSlug(m[1])
 			curName = latexTitleToName(m[1])
-			curURI = "fretplot://doc/" + sectionSlug + "/" + subSlug
+			curURI = "fretplot://" + sectionSlug + "/" + subSlug
 			if len(sectionLines) > 0 {
 				curLines = append(sectionLines, curLines...)
 				sectionLines = nil

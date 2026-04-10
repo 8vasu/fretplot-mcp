@@ -92,7 +92,7 @@ Note: Go's standard library has no `os.UserDataDir()` function (unlike `os.UserC
 | `fps_snippet` | `query` | Relevant `.fps` format documentation to answer the query |
 | `tex_snippet` | `query` | Relevant LaTeX/macro documentation to answer the query |
 
-**Resources:** one per subsection of `doc_fretplot.tex`, URI scheme `fretplot://doc/<section>/<subsection>`.
+**Resources:** one per subsection of `doc_fretplot.tex`, URI scheme `fretplot://<section>/<subsection>`.
 The count tracks the documentation automatically; as of the initial release, 15 resources are registered.
 
 **Prompts:** one per tool, each taking a `query` argument. Prompts guarantee the right tool is invoked
@@ -189,7 +189,7 @@ because the server never needs them.
 `ParseDocSections()` walks `doc_fretplot.tex` line by line after `\begin{document}`:
 
 - Each `\section{}` starts a new top-level context; its intro text is prepended to the first subsection.
-- Each `\subsection{}` produces one `DocSection` with URI `fretplot://doc/<section>/<subsection>`.
+- Each `\subsection{}` produces one `DocSection` with URI `fretplot://<section>/<subsection>`.
 - `\lstinputlisting{FILE}` is replaced by the inlined content of `FILE`.
 - `\fpdocexample{NAME}` is replaced by the inlined content of `include/NAME/src.fp` and
   `include/NAME/full.tex`, with a compile instruction appended.
