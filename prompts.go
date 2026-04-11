@@ -23,33 +23,11 @@ func makePromptHandler(toolName string) mcp.PromptHandler {
 
 func addPrompts(server *mcp.Server) {
 	arg := []*mcp.PromptArgument{{Name: "query", Required: true}}
-
-	prompts := []struct {
-		name, description string
-	}{
-		{
-			"list_scales",
-			"Look up built-in fretplot scale and arpeggio macros.",
-		},
-		{
-			"fp_snippet",
-			"Generate .fp code for any fretplot diagram property or effect.",
-		},
-		{
-			"fps_snippet",
-			"Generate .fps code for any fretplot scale style customization.",
-		},
-		{
-			"tex_snippet",
-			"Generate fretplot LaTeX code: macros, preamble, complete documents.",
-		},
-	}
-
-	for _, p := range prompts {
+	for name, cfg := range tools {
 		server.AddPrompt(&mcp.Prompt{
-			Name:        p.name,
-			Description: p.description,
+			Name:        name,
+			Description: cfg.description,
 			Arguments:   arg,
-		}, makePromptHandler(p.name))
+		}, makePromptHandler(name))
 	}
 }

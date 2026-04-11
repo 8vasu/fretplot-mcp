@@ -20,7 +20,7 @@ as a subprocess and communicates over stdin/stdout - no networking required for 
 | **Resource** | Readable data identified by a URI (files, docs, records)                   | The client/user|
 | **Prompt**   | A named, parameterized message template                                     | The user       |
 
-This server uses **Tools, Resources, and Prompts**.
+This server uses **Tools and Prompts**.
 
 ### Why an MCP server for fretplot?
 
@@ -28,10 +28,8 @@ You could just open a Claude Code session, point it at the fretplot source, and 
 That works. The MCP server adds value in specific ways:
 
 - **Context window cost.** `doc_fretplot.tex` plus all referenced example files add up quickly.
-  The MCP server pre-parses the documentation into structured resources, so only the relevant sections
-  are loaded for any given task.
-- **Targeted retrieval.** The snippet tools return only the documentation sections relevant to the
-  query, keeping context lean regardless of how large the documentation grows.
+  The snippet tools return only the documentation sections relevant to the query, keeping context
+  lean regardless of how large the documentation grows.
 - **Portability.** Works in any MCP client without copy-pasting the fretplot docs each time.
 
 ## Architecture
@@ -54,8 +52,8 @@ at runtime - the same document that compiles to `doc_fretplot.pdf`. This means:
 
 Rather than cloning the entire fretplot repository, the server fetches only what is needed:
 
-- `doc_fretplot.tex` (checked out automatically in cone mode as a root file)
-- `include/` directory (contains example `.fp` and `.tex` files referenced from the doc)
+- `doc_fretplot.tex` (root file)
+- `include/` directory (example `.fp` and `.tex` files referenced from the doc)
 
 This is done with a partial clone and non-cone sparse checkout, which allows specifying
 exact files and directories rather than the cone-mode default of always including all root-level files:
@@ -81,29 +79,27 @@ The server clones fretplot into the OS-appropriate user data directory:
 Note: Go's standard library has no `os.UserDataDir()` function (unlike `os.UserCacheDir` and `os.UserConfigDir`).
 `userDataDir()` in `main.go` implements the correct platform logic manually using `runtime.GOOS`.
 
-## Tools and resources
+## Tools and prompts
 
-**Tools:**
+**Tools** - each takes a `query` string and returns the relevant documentation section(s) for the LLM to generate the answer:
 
-| Tool | Input | Output |
-|------|-------|--------|
-| `list_scales` | `query` | All `\fp*` scale/arpeggio macros; query filters or focuses the answer |
-| `fp_snippet` | `query` | Relevant `.fp` format documentation to answer the query |
-| `fps_snippet` | `query` | Relevant `.fps` format documentation to answer the query |
-| `tex_snippet` | `query` | Relevant LaTeX/macro documentation to answer the query |
+| Tool | Documentation used | Covers |
+|------|--------------------|--------|
+| `fp_snippet` | The fretplot file format | `.fp` syntax, parameters, examples |
+| `fps_snippet` | The fretplot scale style file format | `.fps` syntax, style customization |
+| `tex_snippet` | Introduction + LaTeX macros | `\fpscale`, `\fptotikz`, preamble, built-in scale macros |
 
-**Resources:** one per subsection of `doc_fretplot.tex`, URI scheme `fretplot://<section>/<subsection>`.
-The count tracks the documentation automatically; as of the initial release, 15 resources are registered.
+`tex_snippet` handles scale macro lookup too - the built-in scale/arpeggio table is part of the
+LaTeX macros section of the documentation.
 
-**Prompts:** one per tool, each taking a `query` argument. Prompts guarantee the right tool is invoked
-for the task rather than relying on the LLM to select it. Available in any MCP client, no per-user setup required.
+**Prompts** - one per tool, each taking a `query` argument. Prompts guarantee the right tool is
+invoked rather than relying on the LLM to select it. Available in any MCP client, no per-user setup required.
 
-| Prompt | Argument | Invokes |
-|--------|----------|---------|
-| `list_scales` | `query` | `list_scales` tool |
-| `fp_snippet` | `query` | `fp_snippet` tool |
-| `fps_snippet` | `query` | `fps_snippet` tool |
-| `tex_snippet` | `query` | `tex_snippet` tool |
+| Prompt | Invokes |
+|--------|---------|
+| `fp_snippet` | `fp_snippet` tool |
+| `fps_snippet` | `fps_snippet` tool |
+| `tex_snippet` | `tex_snippet` tool |
 
 ## Usage
 
@@ -117,8 +113,6 @@ for the task rather than relying on the LLM to select it. Available in any MCP c
 ```bash
 git clone https://github.com/8vasu/fretplot-mcp
 cd fretplot-mcp
-go get -u ./...
-go mod tidy
 go build .
 ```
 
@@ -132,7 +126,6 @@ The `--scope user` flag registers the server globally (available in all Claude C
 Omitting it defaults to project scope - not what you want for a general-purpose tool.
 
 Then start a new Claude Code session. The server will clone fretplot on first run, pull on subsequent runs.
-To verify it works, try: "list all fretplot scales".
 
 ## Development log
 
@@ -151,8 +144,6 @@ To verify it works, try: "list all fretplot scales".
      does not exist in Go's standard library.
    - `syncFretplot()` - clones fretplot on first run, `git pull`s on subsequent runs. Warns and
      continues if sync fails (server still starts).
-   - `listScales` tool - parses the scale macro table in `doc_fretplot.tex` and returns a formatted
-     table of all built-in scale/arpeggio macros with their names and interval formulas.
 
 **First run output:**
 ```
@@ -164,79 +155,48 @@ with no MCP client, this is expected - use Ctrl-C to exit.
 
 ---
 
-### Stage 2 - Documentation resources
+### Stage 2 - Documentation parsing and snippet tools
 
-**Goal:** expose the full fretplot documentation as MCP resources, one per subsection.
+**Goal:** parse `doc_fretplot.tex` at runtime and expose its sections as tool context, so the LLM
+can answer targeted fretplot questions without the entire documentation in context.
 
 **Key decision: documentation as the sole source of truth.**
 
-An initial approach of hard-coding resource content as Go string constants was rejected as
-unmaintainable: any change to the fretplot documentation would require a manual update to the
-server. Instead, all resource content is parsed from `doc_fretplot.tex` at runtime. The server
-treats the documentation the same way a human user would: learn everything from it, use nothing else.
+The server does not read `fretplot.lua` or `fretplot.sty`. All knowledge comes from `doc_fretplot.tex`,
+the same source that compiles to the user-facing PDF. This drove the sparse checkout decision -
+implementation files are never fetched.
 
-This also drove the sparse checkout decision. `fretplot.lua` and `fretplot.sty` are never fetched
-because the server never needs them.
+**Parsing approach:**
 
-**Files added/changed:**
+`ParseDocSections()` in `parse.go`:
 
-- `doc.go` (new): LaTeX parser with `ParseDocSections()` and `ParseScaleMacros()`.
-- `resources.go` (new): Registers one MCP resource per parsed subsection.
-- `main.go`: Switched to sparse checkout; `listScales` updated to use `ParseScaleMacros()`.
+1. Reads `doc_fretplot.tex` and strips everything after `\end{document}`.
+2. Removes comments and layout commands (`\newpage`, `\maketitle`, etc.).
+3. Inlines file references: `\lstinputlisting{FILE}` is replaced by the file's content;
+   `\fpdocexample{NAME}` is replaced by `include/NAME/src.fp` and `include/NAME/full.tex`;
+   `\input{}` (compiled TikZ output) is dropped.
+4. Splits on `\n\section` - the raw section title becomes the map key, the body the value.
 
-**Parsing logic:**
+Returns a `map[string]string` keyed by exact LaTeX section titles as they appear in the doc.
 
-`ParseDocSections()` walks `doc_fretplot.tex` line by line after `\begin{document}`:
+**Tool design:**
 
-- Each `\section{}` starts a new top-level context; its intro text is prepended to the first subsection.
-- Each `\subsection{}` produces one `DocSection` with URI `fretplot://<section>/<subsection>`.
-- `\lstinputlisting{FILE}` is replaced by the inlined content of `FILE`.
-- `\fpdocexample{NAME}` is replaced by the inlined content of `include/NAME/src.fp` and
-  `include/NAME/full.tex`, with a compile instruction appended.
-- `\input{}` lines are dropped (compiled TikZ output, not source).
-- Layout lines (`\newpage`, `\maketitle`, comments, etc.) are skipped.
+Each tool takes a `query` string and returns the relevant section content for the LLM to generate
+the answer. The tools do not generate code themselves. `toolSections` in `tools.go` maps each tool
+to the section titles it uses; `sectionDocs()` assembles the content.
 
-Section-level slugs are mapped to short names: `introduction`, `macros`, `fp`, `fps`.
+**Files:**
 
----
-
-### Stage 3 - Snippet tools
-
-**Goal:** give the LLM tools to answer targeted questions about fretplot syntax, returning only
-the relevant documentation rather than burning the entire doc into context.
-
-**Design principle:** the snippet tools do not generate code themselves. Each tool takes a `query`
-string, returns the relevant documentation sections, and the LLM generates the correct snippet from
-that context. A user asking "how do I rotate a diagram 90 degrees?" gets the exact `.fp` lines they
-need - not a boilerplate file they didn't ask for.
-
-The three tools map to the three file types in fretplot:
-
-| Tool | Documentation sections returned |
-|------|----------------------------------|
-| `fp_snippet` | `.fp` file format reference and examples |
-| `fps_snippet` | `.fps` file format reference and examples |
-| `tex_snippet` | Introduction and macros reference (covers `\fpscale`, `\fpfret`, preamble, etc.) |
-
-`tex_snippet` is a superset of any single-macro query - it handles everything from a one-line
-`\fpscale` call to a complete compilable document.
-
-**Files added/changed:**
-
-- `tools.go` (new): `addTools()` registers the three snippet tools. `makeSnippetHandler()` closes
-  over the pre-formatted documentation string for each tool.
-- `resources.go`: signature changed from `addResources(server, docPath)` to
-  `addResources(server, sections)` - no longer re-parses the file.
-- `main.go`: `ParseDocSections()` is now called once and the result passed to both `addResources`
-  and `addTools`.
+- `parse.go`: `ParseDocSections()` - doc parsing.
+- `tools.go`: `addTools()`, `makeSnippetHandler()`, `toolSections`, `sectionDocs()`.
+- `main.go`: passes `docPath` to `addTools()`; no parsing at the top level.
 
 ---
 
-### Stage 4 - MCP Prompts
+### Stage 3 - MCP Prompts
 
 **Goal:** add one MCP Prompt per tool so users can force the right tool to be invoked directly,
-without relying on the LLM to select it. Prompts are part of the MCP spec and work in any MCP
-client - not just Claude Code.
+without relying on the LLM to select it.
 
 **Design:** each prompt takes a single `query` argument and returns a user message instructing the
 LLM to call the corresponding tool. This is a thin routing layer: the prompt guarantees tool
@@ -246,13 +206,8 @@ selection, the tool returns the relevant documentation, the LLM generates the an
 Claude Code-specific and require per-user setup. MCP prompts ship with the server and are
 automatically available to any MCP client that connects.
 
-**`list_scales` updated** to accept an optional `query` argument (consistent with the other three
-tools), allowing targeted questions about specific scales or arpeggios rather than always returning
-the full table.
+**Files:**
 
-**Files added/changed:**
-
-- `prompts.go` (new): `addPrompts()` registers four prompts using `makePromptHandler()`, which
-  closes over the tool name to produce the routing message.
-- `main.go`: `addPrompts(server)` called after `addTools`; `list_scales` signature updated to
-  accept `snippetInput`.
+- `prompts.go`: `addPrompts()` registers three prompts using `makePromptHandler()`, which closes
+  over the tool name to produce the routing message.
+- `main.go`: `addPrompts(server)` called after `addTools`.
