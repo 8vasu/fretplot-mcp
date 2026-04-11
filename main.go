@@ -8,6 +8,10 @@ import (
 )
 
 func main() {
+	if err := syncRepo(fretplotRepoDirPath, fretplotRepoURL, fretplotSparsePaths); err != nil {
+		log.Printf("Warning: %s repo sync failed: %v", fretplotRepoName, err)
+	}
+
 	server := mcp.NewServer(&mcp.Implementation{Name: fretplotMCPServerName,
 		Version: fretplotMCPServerVersion}, nil)
 

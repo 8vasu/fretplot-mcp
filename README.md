@@ -66,6 +66,8 @@ git checkout
 
 `fretplot.lua`, `fretplot.sty`, and all other files are never downloaded.
 
+On first run the server clones fretplot automatically; on subsequent runs it pulls updates.
+
 ### fretplot storage location
 
 The server clones fretplot into the OS-appropriate user data directory:
@@ -77,7 +79,7 @@ The server clones fretplot into the OS-appropriate user data directory:
 | Windows | `%APPDATA%\fretplot-mcp\fretplot\`                     |
 
 Note: Go's standard library has no `os.UserDataDir()` function (unlike `os.UserCacheDir` and `os.UserConfigDir`).
-`userDataDir()` in `main.go` implements the correct platform logic manually using `runtime.GOOS`.
+`userDataDir()` in `platform.go` implements the correct platform logic manually using `runtime.GOOS`.
 
 ## Tools and prompts
 
@@ -87,10 +89,13 @@ Note: Go's standard library has no `os.UserDataDir()` function (unlike `os.UserC
 |------|--------------------|--------|
 | `fp_snippet` | The fretplot file format | `.fp` syntax, parameters, examples |
 | `fps_snippet` | The fretplot scale style file format | `.fps` syntax, style customization |
-| `tex_snippet` | Introduction + LaTeX macros | `\fpscale`, `\fptotikz`, preamble, built-in scale macros |
+| `tex_snippet` | Introduction + LaTeX macros | `\fpscale`, `\fptotikz`, preamble, built-in scale/arpeggio macros |
 
-`tex_snippet` handles scale macro lookup too - the built-in scale/arpeggio table is part of the
+`tex_snippet` handles scale macro lookup - the built-in scale/arpeggio table is part of the
 LaTeX macros section of the documentation.
+
+The tools do not generate code themselves. Each tool returns the relevant documentation and the
+LLM generates the correct snippet from that context.
 
 **Prompts** - one per tool, each taking a `query` argument. Prompts guarantee the right tool is
 invoked rather than relying on the LLM to select it. Available in any MCP client, no per-user setup required.
@@ -127,48 +132,20 @@ Omitting it defaults to project scope - not what you want for a general-purpose 
 
 Then start a new Claude Code session. The server will clone fretplot on first run, pull on subsequent runs.
 
-## Development log
+## Implementation notes
 
-### Stage 1 - Minimal working MCP server
+### Startup sequence
 
-**Goal:** end-to-end plumbing only. Claude Code connects, git sync works, one tool call round-trips.
+`main()` runs in order:
 
-1. Initialized Go module (`github.com/soumendra/fretplot-mcp`, Go 1.25.5).
+1. Clones or pulls the fretplot repo (sparse checkout) via `syncRepo`.
+2. Creates the MCP server.
+3. Calls `addTools`, which calls `ParseDocSections()` to read and parse the documentation.
+4. Registers prompts, then starts serving over stdio.
 
-2. Added the official MCP Go SDK (`github.com/modelcontextprotocol/go-sdk v1.4.1`).
-   Note: `go get` before `main.go` existed did not populate `go.sum` with transitive dependencies.
-   Running `go get -u ./... && go mod tidy` after writing `main.go` completed it in one step.
+### Parsing
 
-3. Wrote `main.go` with:
-   - `userDataDir()` - cross-platform data directory, implemented manually since `os.UserDataDir()`
-     does not exist in Go's standard library.
-   - `syncFretplot()` - clones fretplot on first run, `git pull`s on subsequent runs. Warns and
-     continues if sync fails (server still starts).
-
-**First run output:**
-```
-2026/04/07 22:37:52 Cloning fretplot (sparse) into /home/user/.local/share/fretplot-mcp/fretplot
-{"jsonrpc":"2.0","method":"notifications/tools/list_changed","params":{}}
-```
-The server blocks waiting for a client on stdin after startup. When run directly in the terminal
-with no MCP client, this is expected - use Ctrl-C to exit.
-
----
-
-### Stage 2 - Documentation parsing and snippet tools
-
-**Goal:** parse `doc_fretplot.tex` at runtime and expose its sections as tool context, so the LLM
-can answer targeted fretplot questions without the entire documentation in context.
-
-**Key decision: documentation as the sole source of truth.**
-
-The server does not read `fretplot.lua` or `fretplot.sty`. All knowledge comes from `doc_fretplot.tex`,
-the same source that compiles to the user-facing PDF. This drove the sparse checkout decision -
-implementation files are never fetched.
-
-**Parsing approach:**
-
-`ParseDocSections()` in `parse.go`:
+`ParseDocSections()` in `parse.go` parses the already-synced documentation:
 
 1. Reads `doc_fretplot.tex` and strips everything after `\end{document}`.
 2. Removes comments and layout commands (`\newpage`, `\maketitle`, etc.).
@@ -177,37 +154,18 @@ implementation files are never fetched.
    `\input{}` (compiled TikZ output) is dropped.
 4. Splits on `\n\section` - the raw section title becomes the map key, the body the value.
 
-Returns a `map[string]string` keyed by exact LaTeX section titles as they appear in the doc.
+Returns a `map[string]string` keyed by exact LaTeX section titles as they appear in the source.
 
-**Tool design:**
+### Configuration
 
-Each tool takes a `query` string and returns the relevant section content for the LLM to generate
-the answer. The tools do not generate code themselves. `toolSections` in `tools.go` maps each tool
-to the section titles it uses; `sectionDocs()` assembles the content.
+`config.go` is the single place containing all static configuration: repo URL, filenames,
+directory names, sparse checkout paths, and tool/prompt definitions (`tools` map). Adding a new
+tool means adding one entry to the `tools` map - no other files need changing.
 
-**Files:**
+### go.mod dependency fetch
 
-- `parse.go`: `ParseDocSections()` - doc parsing.
-- `tools.go`: `addTools()`, `makeSnippetHandler()`, `toolSections`, `sectionDocs()`.
-- `main.go`: passes `docPath` to `addTools()`; no parsing at the top level.
+Dependencies are fetched automatically on first build. No manual `go get` required:
 
----
-
-### Stage 3 - MCP Prompts
-
-**Goal:** add one MCP Prompt per tool so users can force the right tool to be invoked directly,
-without relying on the LLM to select it.
-
-**Design:** each prompt takes a single `query` argument and returns a user message instructing the
-LLM to call the corresponding tool. This is a thin routing layer: the prompt guarantees tool
-selection, the tool returns the relevant documentation, the LLM generates the answer.
-
-**Why prompts instead of Claude Code skills?** Skills (`.md` files in `~/.claude/commands/`) are
-Claude Code-specific and require per-user setup. MCP prompts ship with the server and are
-automatically available to any MCP client that connects.
-
-**Files:**
-
-- `prompts.go`: `addPrompts()` registers three prompts using `makePromptHandler()`, which closes
-  over the tool name to produce the routing message.
-- `main.go`: `addPrompts(server)` called after `addTools`.
+```bash
+go build .  # fetches dependencies, compiles
+```

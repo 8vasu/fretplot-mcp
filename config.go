@@ -1,15 +1,15 @@
 package main
 
+import (
+	"log"
+	"path/filepath"
+)
+
 const fretplotMCPServerName = "fretplot-mcp"
-
 const fretplotMCPServerVersion = "v0.1.0"
-
 const fretplotRepoName = "fretplot"
-
 const fretplotRepoURL = "https://github.com/8vasu/" + fretplotRepoName
-
 const fretplotDocFileName = "doc_fretplot.tex"
-
 const fretplotDocIncludeDirName = "include"
 
 var fretplotSparsePaths = []string{
@@ -20,6 +20,20 @@ var fretplotSparsePaths = []string{
 var fpdocexampleFileNames = []string{
 	"src.fp",
 	"full.tex",
+}
+
+var (
+	fretplotRepoDirPath string
+	fretplotDocFilePath string
+)
+
+func init() {
+	dataDir, err := userDataDir()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fretplotRepoDirPath = filepath.Join(dataDir, fretplotMCPServerName, fretplotRepoName)
+	fretplotDocFilePath = filepath.Join(fretplotRepoDirPath, fretplotDocFileName)
 }
 
 type toolConfig struct {

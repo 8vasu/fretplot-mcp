@@ -16,17 +16,17 @@ var (
 	layoutRe   = regexp.MustCompile(`(?m)^[ \t]*\\(newpage|normalsize|maketitle|tableofcontents|thispagestyle|captionsetup)[^\n]*\n?`)
 )
 
-func inlineFiles(docText, docDir string) string {
+func inlineFiles(docText string) string {
 	docText = inputRe.ReplaceAllString(docText, "")
 
 	docText = fpdocRe.ReplaceAllStringFunc(docText, func(match string) string {
 		m := fpdocRe.FindStringSubmatch(match)
-		return fpdocContent(m[1], docDir)
+		return fpdocContent(m[1])
 	})
 
 	docText = lstInputRe.ReplaceAllStringFunc(docText, func(match string) string {
 		m := lstInputRe.FindStringSubmatch(match)
-		path := filepath.Join(docDir, m[1])
+		path := filepath.Join(fretplotRepoDirPath, m[1])
 		content, err := os.ReadFile(path)
 		if err != nil {
 			return fmt.Sprintf("[file not found: %s]\n", m[1])
@@ -37,11 +37,11 @@ func inlineFiles(docText, docDir string) string {
 	return docText
 }
 
-func fpdocContent(subdirName, docDir string) string {
+func fpdocContent(subdirName string) string {
 	var sb strings.Builder
 	for _, filName := range fpdocexampleFileNames {
 		relPath := filepath.Join(fretplotDocIncludeDirName, subdirName, filName)
-		filPath := filepath.Join(docDir, relPath)
+		filPath := filepath.Join(fretplotRepoDirPath, relPath)
 		sb.WriteString(fmt.Sprintf("\n(%s)\n", relPath))
 		if c, err := os.ReadFile(filPath); err == nil {
 			sb.Write(c)
@@ -54,18 +54,7 @@ func fpdocContent(subdirName, docDir string) string {
 }
 
 func ParseDocSections() (map[string]string, error) {
-	dataDir, err := userDataDir()
-	if err != nil {
-		return nil, err
-	}
-	docDir := filepath.Join(dataDir, fretplotMCPServerName, fretplotRepoName)
-
-	if err := syncRepo(docDir, fretplotRepoURL, fretplotSparsePaths); err != nil {
-		fmt.Printf("Warning: %s sync failed: %v\n", fretplotRepoName, err)
-	}
-
-	docPath := filepath.Join(docDir, fretplotDocFileName)
-	docBytes, err := os.ReadFile(docPath)
+	docBytes, err := os.ReadFile(fretplotDocFilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +66,7 @@ func ParseDocSections() (map[string]string, error) {
 
 	docText = commentRe.ReplaceAllString(docText, "")
 	docText = layoutRe.ReplaceAllString(docText, "")
-	docText = inlineFiles(docText, docDir)
+	docText = inlineFiles(docText)
 
 	doc := make(map[string]string)
 	for _, part := range strings.Split(docText, "\n\\section")[1:] {
