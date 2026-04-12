@@ -55,7 +55,7 @@ The next steps can proceed in 2 ways: in one you pick your own MCP prompt to for
 /mcp__fretplot__fps make C# a red triangle
 /mcp__fretplot__fptex B natural minor scale diagram
 ```
-5. Press enter and wait for the MCP server and the LLM to do their magic!
+5. Press Enter and wait for the MCP server and the LLM to do their magic!
 
 ### Method 2
 
