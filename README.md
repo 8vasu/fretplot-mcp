@@ -33,8 +33,32 @@ $ cd fretplot-mcp
 $ go build .
 ```
 
-### Connect to Claude Code
+## Usage in [Claude Code](https://www.anthropic.com/product/claude-code)
 
+1. Connect to Claude Code:
 ```sh
-claude mcp add --transport stdio --scope user fretplot -- /path/to/fretplot-mcp
+$ claude mcp add --transport stdio --scope user fretplot -- /path/to/fretplot-mcp
 ```
+2. Start a new claude Claude Code session:
+```sh
+$ claude
+```
+
+The next steps can proceed in 2 ways: in one you pick your own MCP prompt to force invocation of the correct MCP tool, and in the other you simply write the entire query in natural language and depend on the LLM to guess and pick an MCP tool for you.
+
+### Method 1
+
+3. In the Claude Code session, type `/fp` and select an MCP prompt from the menu using Up/Down arrow keys and then pressing Enter.
+4. Type your query. Here are some examples of how your Claude Code prompt might look when you have finished typing your query:
+```
+/mcp__fretplot__fp rotate a diagram by 90 degrees clockwise
+/mcp__fretplot__fps make C# a red triangle
+/mcp__fretplot__fptex B natural minor scale diagram
+```
+5. Press enter and wait for the MCP server and the LLM to do their magic!
+
+### Method 2
+
+3. Describe what you want at the Claude Code prompt in natural language. For example, `generate fretplot code to scale a diagarm by a factor of 2` or `generate fps code to render B flat as a green circle`.
+4. Press Enter and wait for the LLM to pick an MCP tool. If it does not pick an MCP tool and instead tries to search for fretplot in the filesystem, please deny, type `use the MCP server`, and press Enter.
+5. If the LLM has picked the right MCP tool, confirm its usage. Otherwise, deny and ask it to look for a different MCP tool.
