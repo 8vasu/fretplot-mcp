@@ -1,8 +1,8 @@
 # fretplot-mcp
 
-An MCP (Model Context Protocol) server for the [fretplot](https://github.com/8vasu/fretplot) ([CTAN](https://ctan.org/pkg/fretplot)) LuaTeX package.
+A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for the [fretplot](https://github.com/8vasu/fretplot) ([CTAN](https://ctan.org/pkg/fretplot)) LuaTeX package written in [Go](https://go.dev/) using the [official Go SDK for MCP](https://github.com/modelcontextprotocol/go-sdk).
 
-Allows MCP clients to generate fretplot and fretplot-specific LaTeX code from natural language descriptions of musical scales and chord voicings.
+This package allows MCP clients to generate fretplot and fretplot-specific LaTeX code from natural language descriptions of musical scales and chord voicings.
 
 ## MCP tools and prompts
 
