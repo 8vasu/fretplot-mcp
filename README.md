@@ -44,9 +44,9 @@ $ claude mcp add --transport stdio --scope user fretplot -- /path/to/fretplot-mc
 $ claude
 ```
 
-The next steps can proceed in 2 ways: in one you pick your own MCP prompt to force invocation of the correct MCP tool, and in the other you simply write the entire query in natural language and depend on the LLM to guess and pick an MCP tool for you.
+The next steps can proceed in 2 ways:
 
-### Method 1
+### Method 1: use an MCP tool of your choice
 
 3. In the Claude Code session, type `/fp` and select an MCP prompt from the menu using Up/Down arrow keys and then pressing Enter.
 4. Type your query. Here are some examples of how your Claude Code prompt might look when you have finished typing your query:
@@ -56,9 +56,10 @@ The next steps can proceed in 2 ways: in one you pick your own MCP prompt to for
 /mcp__fretplot__fptex B natural minor scale diagram
 ```
 5. Press Enter and wait for the MCP server and the LLM to do their magic!
+6. Once you have used a particular MCP tool, the fretplot documentation chunk pertaining to that MCP tool will be stored in the context of that Claude Code session, so unless you are in a new Claude Code session or the context gets compressed, subsequent queries pertaining to that MCP tool should be made simply in natural language without MCP prompt/tool usage in order to save tokens.
 
-### Method 2
+### Method 2: let the LLM pick an MCP tool for you
 
 3. Describe what you want at the Claude Code prompt in natural language. For example, `generate fretplot code to scale a diagarm by a factor of 2` or `generate fps code to render B flat as a green circle`.
-4. Press Enter and wait for the LLM to pick an MCP tool. If it does not pick an MCP tool and instead tries to search for fretplot in the filesystem, please deny, type `use the MCP server`, and press Enter.
+4. Press Enter and wait for the LLM to pick an MCP tool. If it does not pick an MCP tool and instead tries to search for fretplot in the filesystem, please deny, type `use the fretplot MCP server`, and press Enter.
 5. If the LLM has picked the right MCP tool, confirm its usage. Otherwise, deny and ask it to look for a different MCP tool.
